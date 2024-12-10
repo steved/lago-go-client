@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/go-querystring/query"
 	"github.com/google/uuid"
 )
 
@@ -18,6 +19,15 @@ type EventParams struct {
 
 type BatchEventParams struct {
 	Events *[]EventInput `json:"events"`
+}
+
+type EventListInput struct {
+	ExternalSubscriptionID string     `url:"external_subscription_id,omitempty"`
+	Code                   string     `url:"code,omitempty"`
+	PerPage                int        `url:"per_page,omitempty"`
+	Page                   int        `url:"page,omitempty"`
+	TimestampFrom          *time.Time `url:"timestamp_from,omitempty"`
+	TimestampTo            *time.Time `url:"timestamp_from,omitempty"`
 }
 
 type EventInput struct {
@@ -45,6 +55,11 @@ type BatchEventResult struct {
 
 type EventResult struct {
 	Event *Event `json:"event"`
+}
+
+type ListEventResult struct {
+	Events []Event  `json:"events"`
+	Meta   Metadata `json:"meta,omitempty"`
 }
 
 type Event struct {
@@ -133,6 +148,31 @@ func (er *EventRequest) Get(ctx context.Context, eventID string) (*Event, *Error
 	}
 
 	return eventResult.Event, nil
+}
+
+func (er *EventRequest) List(ctx context.Context, eventListInput EventListInput) (*ListEventResult, *Error) {
+	urlValues, err := query.Values(eventListInput)
+	if err != nil {
+		return nil, &Error{Err: err}
+	}
+
+	clientRequest := &ClientRequest{
+		Path:      "events",
+		UrlValues: urlValues,
+		Result:    &ListEventResult{},
+	}
+
+	result, clientErr := er.client.Get(ctx, clientRequest)
+	if clientErr != nil {
+		return nil, clientErr
+	}
+
+	eventResult, ok := result.(*ListEventResult)
+	if !ok {
+		return nil, &ErrorTypeAssert
+	}
+
+	return eventResult, nil
 }
 
 func (er *EventRequest) Batch(ctx context.Context, batchInput *[]EventInput) (*[]Event, *Error) {
